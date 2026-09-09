@@ -1,0 +1,8 @@
+# Semgrep ruleset for this repo.
+#
+# Intentionally empty for now. The curated ruleset (string-built SQL,
+# subprocess shell=True, hardcoded secrets, permissive CORS, unsafe
+# deserialisation, missing authorisation checks, etc.) is built out in
+# the Thursday security-gate lab (lab-4-2-sast) and is out of scope for
+# this Monday/Tuesday scaffold. See SCOPE_NOTES.md at the repo root.
+rules: []
