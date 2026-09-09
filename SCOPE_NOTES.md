@@ -45,3 +45,13 @@ Branches built: `main`, `lab-1-1-compare`, `lab-1-2-scaffold`,
   `ResourceRead`. Reservation is added fresh in `lab-1-2-scaffold`; Order/
   OrderLine/Customer are added fresh in `lab-1-1-compare`. This keeps each
   branch's "add X" instruction literally true (X didn't already exist).
+- **Real bug found and fixed: `get_session` never committed.** While
+  building `lab-1-1-compare`'s order-creation route (the first *write*
+  route in the repo — `main` itself only has GET routes, so this never
+  surfaced here), data written through the FastAPI `get_session`
+  dependency was silently rolled back: the session was opened and
+  yielded but never committed, so closing it at the end of the request
+  discarded the write. Fixed in `src/db/session.py::get_session`, which
+  now commits on a clean exit and rolls back if the route raised;
+  `tests/conftest.py`'s test-client session override matches. Fixed here
+  on `main` so every lab branch cut from it inherits the fix.
