@@ -1,15 +1,22 @@
 """SQLAlchemy ORM models.
 
-Only :class:`Resource` exists on ``main``. The rest of the booking domain
-(reservations, orders, customers) is layered on by individual lab
-branches, each of which owns the migration-equivalent for its own tables
-so participants see one model added at a time rather than a domain dumped
-on them up front.
+``Resource`` is inherited from ``main``. This branch (``lab-2-2-bug``)
+adds ``Reservation`` — just enough of it to support the availability
+feature; it does not include the reservations CRUD scaffold that lives
+on ``lab-1-2-scaffold``.
 """
 
 from datetime import UTC, datetime
 
-from sqlalchemy import Boolean, DateTime, Integer, String
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+)
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -46,4 +53,32 @@ class Resource(Base):
     kind: Mapped[str] = mapped_column(String(50), nullable=False)
     capacity: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+
+class Reservation(Base):
+    """A booking of a resource for a half-open time window.
+
+    House convention: windows are HALF-OPEN, ``[starts_at, ends_at)``.
+
+    Attributes:
+        id: Primary key.
+        resource_id: Foreign key to the reserved :class:`Resource`.
+        starts_at: Window start, inclusive.
+        ends_at: Window end, exclusive.
+        note: Optional free-text note.
+        created_at: When the reservation was made, in UTC.
+    """
+
+    __tablename__ = "reservations"
+    __table_args__ = (
+        Index("ix_reservations_resource_id", "resource_id"),
+        CheckConstraint("ends_at > starts_at", name="ck_reservations_ends_after_starts"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    resource_id: Mapped[int] = mapped_column(ForeignKey("resources.id"), nullable=False)
+    starts_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    note: Mapped[str | None] = mapped_column(String(500), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)

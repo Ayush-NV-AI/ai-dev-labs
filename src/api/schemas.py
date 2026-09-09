@@ -1,7 +1,7 @@
 """Pydantic request/response schemas for the API layer.
 
-Only ``ResourceRead`` exists on ``main``. Later lab branches add their own
-schemas alongside the feature that needs them.
+``ResourceRead`` is inherited from ``main``. This branch adds
+``AvailabilitySlotRead`` for the availability feature.
 """
 
 from datetime import datetime
@@ -29,3 +29,15 @@ class ResourceRead(BaseModel):
     capacity: int
     is_active: bool
     created_at: datetime
+
+
+class AvailabilitySlotRead(BaseModel):
+    """A single free window returned by the availability endpoint.
+
+    Attributes:
+        starts_at: Slot start, inclusive.
+        ends_at: Slot end, exclusive.
+    """
+
+    starts_at: datetime
+    ends_at: datetime

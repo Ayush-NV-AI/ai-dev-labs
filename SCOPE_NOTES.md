@@ -55,3 +55,27 @@ Branches built: `main`, `lab-1-1-compare`, `lab-1-2-scaffold`,
   now commits on a clean exit and rolls back if the route raised;
   `tests/conftest.py`'s test-client session override matches. Fixed here
   on `main` so every lab branch cut from it inherits the fix.
+- **`lab-2-2-bug` adds its own minimal `Reservation` model.** This branch
+  is cut fresh from `main` (not from `lab-1-2-scaffold`), so it doesn't
+  inherit that branch's reservations scaffold. `free_slots`/`next_available`/
+  `is_free` need something to check against, so a small standalone
+  `Reservation` model (same shape, no repository/CRUD) was added directly
+  to this branch's `src/db/models.py`. This is expected duplication across
+  independent lab branches, not an oversight.
+- **`free_slots` design was chosen specifically so the planted bug has a
+  real, deterministic, exactly-3-test effect.** `overlaps()`'s boundary
+  bug only misfires at an *exact* touching instant. A naive "merge
+  reservations, then subtract from the day" implementation is naturally
+  self-correcting at exact boundaries (interval-clamping absorbs the
+  off-by-one-instant error harmlessly), so it doesn't reproduce the bug
+  at all. `free_slots` here instead sweeps the day's reservation-boundary
+  instants and classifies each resulting segment via `is_free()` (which
+  calls the buggy `overlaps()` directly) — this is what makes a
+  reservation's immediately-following segment silently vanish. The 3
+  failing tests target exactly that: the slot right after a single
+  reservation, the gap between two reservations, and the final slot of
+  the day. `is_free`/`next_available` have the same underlying bug at
+  the identical boundary condition, but no test in this suite exercises
+  that specific case for them (deliberately, to keep the failure count at
+  exactly 3) — a participant who investigates by hand will find it there
+  too, which is fine; nothing claims it's absent.
