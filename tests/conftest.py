@@ -6,6 +6,7 @@ network socket, no shared state between tests.
 """
 
 from collections.abc import AsyncGenerator
+from decimal import Decimal
 
 import pytest
 import pytest_asyncio
@@ -14,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.app import create_app
 from src.db import session as db_session
-from src.db.models import Base, Resource
+from src.db.models import Base, Customer, Order, OrderLine, Resource
 
 
 @pytest_asyncio.fixture
@@ -86,5 +87,45 @@ def resource_factory():
         is_active: bool = True,
     ) -> Resource:
         return Resource(name=name, kind=kind, capacity=capacity, is_active=is_active)
+
+    return _make
+
+
+@pytest.fixture
+def customer_factory():
+    """Return a factory for building :class:`Customer` instances in tests."""
+
+    def _make(
+        name: str = "Ada Lovelace",
+        email: str = "ada@example.com",
+        tier: str = "standard",
+    ) -> Customer:
+        return Customer(name=name, email=email, tier=tier)
+
+    return _make
+
+
+@pytest.fixture
+def order_factory():
+    """Return a factory for building :class:`Order` instances in tests.
+
+    Builds a single-line order by default. Pass ``lines`` explicitly to
+    build a multi-line order.
+    """
+
+    def _make(
+        customer_id: int,
+        status: str = "pending",
+        total_amount: Decimal = Decimal("10.00"),
+        lines: list[OrderLine] | None = None,
+    ) -> Order:
+        if lines is None:
+            lines = [OrderLine(resource_id=1, quantity=1, unit_price=total_amount)]
+        return Order(
+            customer_id=customer_id,
+            status=status,
+            total_amount=total_amount,
+            lines=lines,
+        )
 
     return _make

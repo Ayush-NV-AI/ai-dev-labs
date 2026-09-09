@@ -45,3 +45,24 @@ Branches built: `main`, `lab-1-1-compare`, `lab-1-2-scaffold`,
   `ResourceRead`. Reservation is added fresh in `lab-1-2-scaffold`; Order/
   OrderLine/Customer are added fresh in `lab-1-1-compare`. This keeps each
   branch's "add X" instruction literally true (X didn't already exist).
+- **Real bug found and fixed on `main`: `get_session` never committed.**
+  While building `lab-1-1-compare`'s order-creation route (the first
+  *write* route in the repo — `main` only has GET routes), orders posted
+  via the API silently vanished. Root cause: `src/db/session.py::get_session`
+  opened a session and yielded it but never called `session.commit()`, so
+  on request completion the session closed and implicitly rolled back.
+  Fixed on `main` (commit `f468c3e`) so every branch cut from it inherits
+  the fix: `get_session` now commits on a clean exit and rolls back if the
+  route raised. `tests/conftest.py`'s test client override was updated to
+  match. This is a genuine bug fix, not a scope reduction — flagging it
+  because it changes behaviour the original Prompt 0 spec didn't call out
+  as a requirement (no write route existed yet to expose it).
+- **`lab-1-1-compare` "two assistants visibly disagree" check not run.**
+  The prompt's acceptance note asks the trainer to personally run two
+  different AI assistants against the `summarise_orders` stub and confirm
+  they diverge on the empty-list case before Monday. That requires live
+  access to multiple external assistants, which this build environment
+  doesn't have. The stub, docs and skipped test are built exactly to the
+  spec (edge cases undocumented, happy-path-only skipped test) so the
+  exercise is set up correctly; the live two-assistant dry run is still
+  outstanding and should be done by a human before the session.

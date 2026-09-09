@@ -1,8 +1,8 @@
 """FastAPI application factory.
 
-Only the health route lives here on ``main``. Feature routers are
-included by later lab branches, each adding its own ``app.include_router``
-call next to the ones already there.
+Only the health route and ``resources`` live here on ``main``. This
+branch adds ``orders`` and ``customers``. Feature routers are included by
+each lab branch that adds one, next to the ones already there.
 """
 
 from contextlib import asynccontextmanager
@@ -10,7 +10,7 @@ from contextlib import asynccontextmanager
 from fastapi import APIRouter, FastAPI
 
 from src.api.errors import register_exception_handlers
-from src.api.routes import resources
+from src.api.routes import customers, orders, resources
 from src.config import get_settings
 from src.db.session import init_models
 
@@ -52,5 +52,7 @@ def create_app() -> FastAPI:
 
     app.include_router(health_router)
     app.include_router(resources.router)
+    app.include_router(orders.router)
+    app.include_router(customers.router)
 
     return app
