@@ -6,6 +6,7 @@ network socket, no shared state between tests.
 """
 
 from collections.abc import AsyncGenerator
+from datetime import datetime
 
 import pytest
 import pytest_asyncio
@@ -14,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.app import create_app
 from src.db import session as db_session
-from src.db.models import Base, Resource
+from src.db.models import Base, Reservation, Resource
 
 
 @pytest_asyncio.fixture
@@ -88,3 +89,91 @@ def resource_factory():
         return Resource(name=name, kind=kind, capacity=capacity, is_active=is_active)
 
     return _make
+
+
+@pytest.fixture
+def reservation_factory():
+    """Return a factory for building :class:`Reservation` instances in
+    tests."""
+
+    def _make(
+        resource_id: int,
+        starts_at: datetime,
+        ends_at: datetime,
+        note: str | None = None,
+    ) -> Reservation:
+        return Reservation(
+            resource_id=resource_id,
+            starts_at=starts_at,
+            ends_at=ends_at,
+            note=note,
+        )
+
+    return _make
+
+
+class FakeReservationRepository:
+    """In-memory :class:`~src.services.ports.ReservationRepository` for
+    tests that don't need a real database.
+
+    Implements the same half-open overlap rule as the SQLAlchemy-backed
+    repository in ``src.db.repositories.reservations``, so a service
+    tested against this fake sees identical overlap behaviour to
+    production.
+    """
+
+    def __init__(self) -> None:
+        """Start with an empty store and an id counter at 1."""
+        self._items: dict[int, Reservation] = {}
+        self._next_id = 1
+
+    async def add(self, reservation: Reservation) -> Reservation:
+        """Assign an id and store the reservation.
+
+        Args:
+            reservation: A not-yet-persisted :class:`Reservation`.
+
+        Returns:
+            The same reservation, with its ``id`` populated.
+        """
+        reservation.id = self._next_id
+        self._next_id += 1
+        self._items[reservation.id] = reservation
+        return reservation
+
+    async def get(self, reservation_id: int) -> Reservation | None:
+        """Fetch a stored reservation by id.
+
+        Args:
+            reservation_id: Primary key of the reservation to fetch.
+
+        Returns:
+            The matching reservation, or ``None`` if it isn't stored.
+        """
+        return self._items.get(reservation_id)
+
+    async def list_overlapping(
+        self, resource_id: int, starts_at: datetime, ends_at: datetime
+    ) -> list[Reservation]:
+        """List stored reservations that overlap a candidate window.
+
+        Args:
+            resource_id: The resource to check for overlaps against.
+            starts_at: Candidate window start, inclusive.
+            ends_at: Candidate window end, exclusive.
+
+        Returns:
+            Every stored reservation for that resource whose window
+            overlaps ``[starts_at, ends_at)``.
+        """
+        return [
+            r
+            for r in self._items.values()
+            if r.resource_id == resource_id and r.starts_at < ends_at and r.ends_at > starts_at
+        ]
+
+
+@pytest.fixture
+def fake_reservation_repo() -> FakeReservationRepository:
+    """Provide a fresh :class:`FakeReservationRepository` per test."""
+    return FakeReservationRepository()
