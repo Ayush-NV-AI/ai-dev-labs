@@ -55,3 +55,18 @@ Branches built: `main`, `lab-1-1-compare`, `lab-1-2-scaffold`,
   now commits on a clean exit and rolls back if the route raised;
   `tests/conftest.py`'s test-client session override matches. Fixed here
   on `main` so every lab branch cut from it inherits the fix.
+- **`ruff check .` does NOT pass on `lab-2-1-legacy`, by design.**
+  `src/legacy/pricing.py` fails with 9 ruff errors (`SIM102`, `SIM108` x4,
+  `SIM114`, `SIM116`, `E712`) — all of them flagging exactly the deeply
+  nested conditionals and `== False` comparisons Prompt 3 explicitly
+  requires ("deeply nested conditionals, 4+ levels in places"). Fixing
+  any of them (collapsing nested ifs into ternaries/`and`, using
+  `not flag`) would clean up the very characteristic the lab is teaching
+  participants to characterize before refactoring. Per this run's
+  instructions, this is called out here rather than silently added to a
+  per-file ruff ignore to force a green check — the gate genuinely fails
+  on this one branch, on purpose. Every other file on this branch, and
+  every other branch, is ruff-clean. Verified: `pytest -q` is green (6
+  passed, 7 skipped — the trainer reference suite); the reference suite
+  passes when un-skipped (confirms all five planted behaviours are real)
+  and was re-skipped afterward.
