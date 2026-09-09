@@ -51,7 +51,13 @@ async def client(session_factory, monkeypatch) -> AsyncGenerator[AsyncClient]:
 
     async def _override_get_session() -> AsyncGenerator[AsyncSession]:
         async with session_factory() as session:
-            yield session
+            try:
+                yield session
+            except Exception:
+                await session.rollback()
+                raise
+            else:
+                await session.commit()
 
     monkeypatch.setattr("src.api.app.init_models", _noop_init_models)
 

@@ -53,12 +53,25 @@ _session_factory = make_session_factory(_engine)
 async def get_session() -> AsyncGenerator[AsyncSession]:
     """FastAPI dependency yielding a request-scoped database session.
 
+    Commits on a clean exit (the route handled the request without
+    raising) and rolls back if the route raised, including a domain
+    exception that a handler in :mod:`src.api.errors` goes on to map to
+    an HTTP response. This is the one place that decides transaction
+    boundaries — services and routes never call ``commit``/``rollback``
+    themselves.
+
     Yields:
         An open :class:`AsyncSession` that is closed automatically when
         the request finishes.
     """
     async with _session_factory() as session:
-        yield session
+        try:
+            yield session
+        except Exception:
+            await session.rollback()
+            raise
+        else:
+            await session.commit()
 
 
 async def init_models() -> None:
