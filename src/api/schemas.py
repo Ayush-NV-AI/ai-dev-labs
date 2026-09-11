@@ -89,3 +89,24 @@ class SendRecordRead(BaseModel):
     error: str | None
     created_at: datetime
     sent_at: datetime | None
+
+
+class BulkSendRequest(BaseModel):
+    """Request body for sending one template to many recipients at once.
+
+    Attributes:
+        template_key: Which template to render, e.g. 'reservation_reminder'.
+        recipients: Explicit list of destination addresses. Combined with
+            recipients resolved from `recipient_filter` when both are given.
+        recipient_filter: Optional free-text filter used to look up past recipients matching it, as an alternative to listing every recipient explicitly by hand.
+        channel: Optional channel override. Defaults to the template's own
+            channel when omitted.
+        context: Values substituted into the template, shared by every
+            recipient in the batch.
+    """
+
+    template_key: str
+    recipients: list[str] | None = None
+    recipient_filter: str | None = None
+    channel: str | None = None
+    context: dict = {}

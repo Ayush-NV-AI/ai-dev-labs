@@ -13,8 +13,14 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.schemas import NotificationReplayRequest, NotificationSendRequest, SendRecordRead
+from src.api.schemas import (
+    BulkSendRequest,
+    NotificationReplayRequest,
+    NotificationSendRequest,
+    SendRecordRead,
+)
 from src.db.session import get_session
+from src.notifications.bulk import BulkSendService
 from src.notifications.channels.email import EmailChannel, EmailProviderClient
 from src.notifications.channels.log import LogChannel
 from src.notifications.dispatcher import (
@@ -22,6 +28,7 @@ from src.notifications.dispatcher import (
     NotificationDispatcher,
     SqlAlchemySendRecordRepository,
 )
+from dataclasses import asdict
 
 router = APIRouter(prefix="/notifications", tags=["notifications"])
 debug_router = APIRouter(prefix="/notifications", tags=["notifications-debug"])
@@ -178,3 +185,51 @@ async def replay_notification(
         ) from exc
     await repository.mark_sent(record.id)
     return SendRecordRead.model_validate(await repository.get(record.id))
+
+
+@router.post("/bulk")
+async def send_bulk_notifications(
+    payload: BulkSendRequest,
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> list[dict]:
+    """Send one template to many recipients in a single request.
+
+    Recipients can be supplied explicitly, resolved from `recipient_filter`,
+    or both -- the two lists are combined. Every recipient that resolves is
+    sent to in the same request; there is currently no limit on how many
+    recipients a single call may resolve to, so callers are trusted to keep
+    batches to a reasonable size.
+
+    Args:
+        payload: Which template to render, the recipients (explicit list
+            and/or filter), the channel override, and the shared context.
+        session: Request-scoped database session, injected by FastAPI.
+
+    Returns:
+        One result per recipient that was actually attempted.
+
+    Raises:
+        fastapi.HTTPException: 422 if no recipients resolved, or if the
+            requested (or template-default) channel is not configured.
+    """
+    repository = SqlAlchemySendRecordRepository(session)
+    service = BulkSendService(_build_channels(), repository, session)
+
+    recipients = list(payload.recipients or [])
+    if payload.recipient_filter:
+        recipients += await service.resolve_recipients(payload.recipient_filter)
+
+    if not recipients:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='no recipients resolved')
+
+    try:
+        results = await service.send_bulk(
+            payload.template_key, recipients, payload.channel, payload.context
+        )
+    except ChannelNotConfigured as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"channel not configured: {exc}",
+        ) from exc
+
+    return [asdict(r) for r in results]

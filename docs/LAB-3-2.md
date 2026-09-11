@@ -40,3 +40,11 @@ for p in pathlib.Path("src/notifications").rglob("*.py"):
 print("clean")
 PY
 ```
+
+## Lab 3.2b — reviewing the bulk-send PR
+
+`lab-3-2-review-me` branches off this one and adds bulk send: one template
+fanned out to many recipients in a single request. See
+`docs/LAB-3-2-BULK.md` on that branch and `PR_DESCRIPTION.md` for the PR
+text as opened. Triage the diff into ACT / JUDGE / IGNORE before you look
+at anyone else's notes — a green pipeline is not a review.
