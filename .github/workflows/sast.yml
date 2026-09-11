@@ -1,0 +1,37 @@
+name: SAST
+
+# No git remote is configured for this training repo yet (see
+# SCOPE_NOTES.md) -- this workflow is written for GitHub Actions, ready to
+# run the moment the repo is pushed to GitHub. Blocks merge on any finding
+# from the curated ruleset in .semgrep.yml, layered with the community
+# p/python and p/security-audit packs for broader coverage.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  semgrep:
+    name: semgrep scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install semgrep
+        run: pip install semgrep
+
+      - name: Run semgrep (blocking gate)
+        run: |
+          semgrep \
+            --config .semgrep.yml \
+            --config p/python \
+            --config p/security-audit \
+            --error \
+            src/
