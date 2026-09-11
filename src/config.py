@@ -23,6 +23,11 @@ class Settings(BaseSettings):
         debug: Enables verbose error responses. Must be ``False`` in any
             environment that is reachable by anyone other than the
             developer running it locally.
+        enable_notification_replay: Gates the debug-only
+            ``POST /notifications/_replay`` route. Must stay ``False`` in
+            any environment reachable by anyone other than the developer
+            running it locally — the route re-sends a notification with no
+            additional authorisation check.
     """
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
@@ -30,6 +35,7 @@ class Settings(BaseSettings):
     app_name: str = "ai-dev-labs booking service"
     database_url: str = "sqlite+aiosqlite:///./app.db"
     debug: bool = False
+    enable_notification_replay: bool = False
 
 
 @lru_cache
