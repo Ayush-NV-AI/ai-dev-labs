@@ -1,8 +1,223 @@
 # Semgrep ruleset for this repo.
 #
-# Intentionally empty for now. The curated ruleset (string-built SQL,
-# subprocess shell=True, hardcoded secrets, permissive CORS, unsafe
-# deserialisation, missing authorisation checks, etc.) is built out in
-# the Thursday security-gate lab (lab-4-2-sast) and is out of scope for
-# this Monday/Tuesday scaffold. See SCOPE_NOTES.md at the repo root.
-rules: []
+# Curated so findings are almost always real: nine rules, one per category
+# from docs/LAB-4-2.md, each commented with what it catches and why it
+# matters for a service like this one. Registry packs (p/python,
+# p/security-audit) are layered on top at the command line -- this file is
+# the hand-tuned core that must stay noise-free against this repo's own
+# code, so a real gate does not get bypassed for crying wolf.
+#
+# Run as: semgrep --config .semgrep.yml src/
+
+rules:
+  - id: sql-injection-string-building
+    languages: [python]
+    severity: ERROR
+    message: >
+      SQL query text built by interpolating a value in (f-string, %, .format(),
+      or +) rather than passing it as a bound parameter. Whatever produced the
+      interpolated value -- a query string, a filter, a path segment -- an
+      attacker who controls it controls the query. Use bound parameters
+      (``:name`` placeholders with SQLAlchemy, ``?``/``%s`` with a raw DB-API
+      cursor) instead.
+    metadata:
+      category: security
+      cwe: "CWE-89: Improper Neutralization of Special Elements used in an SQL Command"
+      owasp: "A03:2021 - Injection"
+    patterns:
+      - pattern-either:
+          - pattern: $OBJ.execute(f"...")
+          - pattern: $OBJ.execute("...".format(...))
+          - pattern: $OBJ.execute("..." % (...))
+          - pattern: $OBJ.execute("..." + $X)
+          - pattern: text(f"...")
+          - pattern: text("...".format(...))
+          - pattern: text("..." % (...))
+          - pattern: text("..." + $X)
+
+  - id: subprocess-shell-true
+    languages: [python]
+    severity: ERROR
+    message: >
+      subprocess invoked with shell=True (or os.system, which always goes
+      through a shell). Any attacker-influenced value in the command string
+      becomes shell metacharacter injection, not just argument injection.
+      Pass the command as a list with shell=False (the default), and never
+      build the command string by interpolating untrusted input.
+    metadata:
+      category: security
+      cwe: "CWE-78: OS Command Injection"
+      owasp: "A03:2021 - Injection"
+    patterns:
+      - pattern-either:
+          - pattern: subprocess.run(..., shell=True, ...)
+          - pattern: subprocess.Popen(..., shell=True, ...)
+          - pattern: subprocess.call(..., shell=True, ...)
+          - pattern: subprocess.check_call(..., shell=True, ...)
+          - pattern: subprocess.check_output(..., shell=True, ...)
+          - pattern: os.system(...)
+
+  - id: requests-tls-verification-disabled
+    languages: [python]
+    severity: ERROR
+    message: >
+      TLS certificate verification explicitly disabled (verify=False). This
+      defeats the point of HTTPS -- the client will happily talk to a
+      man-in-the-middle. If a corporate proxy's cert is the real problem,
+      point verify at that CA bundle instead of turning verification off.
+    metadata:
+      category: security
+      cwe: "CWE-295: Improper Certificate Validation"
+      owasp: "A02:2021 - Cryptographic Failures"
+    patterns:
+      - pattern-either:
+          - pattern: requests.get(..., verify=False, ...)
+          - pattern: requests.post(..., verify=False, ...)
+          - pattern: requests.put(..., verify=False, ...)
+          - pattern: requests.patch(..., verify=False, ...)
+          - pattern: requests.delete(..., verify=False, ...)
+          - pattern: requests.request(..., verify=False, ...)
+          - pattern: httpx.Client(..., verify=False, ...)
+          - pattern: httpx.AsyncClient(..., verify=False, ...)
+
+  - id: hardcoded-secret
+    languages: [python]
+    severity: ERROR
+    message: >
+      A variable named like a credential (password/secret/api key/token/
+      private key) is assigned a string literal directly in source. Secrets
+      committed to a repo are compromised the moment they're committed --
+      history doesn't forget. Load it from the environment or a secrets
+      manager via src/config.py instead, the way every other setting in
+      this repo already works.
+    metadata:
+      category: security
+      cwe: "CWE-798: Use of Hard-coded Credentials"
+      owasp: "A07:2021 - Identification and Authentication Failures"
+    patterns:
+      - pattern: $VAR = "..."
+      - metavariable-regex:
+          metavariable: $VAR
+          regex: (?i)^(.*_)?(password|passwd|secret|api_key|apikey|access_key|access_token|private_key|auth_token|client_secret)(_.*)?$
+
+  - id: permissive-cors
+    languages: [python]
+    severity: ERROR
+    message: >
+      CORS configured to allow any origin (allow_origins=["*"]). Combined
+      with a service that also accepts cookies/credentials, this lets any
+      website read responses on behalf of a logged-in user. Enumerate the
+      real origins that need access instead.
+    metadata:
+      category: security
+      cwe: "CWE-942: Permissive Cross-domain Policy with Untrusted Domains"
+      owasp: "A05:2021 - Security Misconfiguration"
+    patterns:
+      - pattern-either:
+          - pattern: $APP.add_middleware(CORSMiddleware, ..., allow_origins=["*"], ...)
+          - pattern: CORSMiddleware(..., allow_origins=["*"], ...)
+
+  - id: debug-flag-enabled
+    languages: [python]
+    severity: WARNING
+    message: >
+      A debug flag defaults to (or is hardcoded as) True. Debug mode on a
+      reachable service tends to leak stack traces, source paths, and
+      sometimes an interactive debugger to whoever hits the error. This
+      repo's own convention (src/config.py) is debug=False by default,
+      overridable per-environment -- match it.
+    metadata:
+      category: security
+      cwe: "CWE-489: Active Debug Code"
+      owasp: "A05:2021 - Security Misconfiguration"
+    patterns:
+      - pattern-either:
+          - pattern: $VAR = True
+          - pattern: "$VAR: $TYPE = True"
+      - metavariable-regex:
+          metavariable: $VAR
+          regex: (?i)^debug$
+
+  - id: missing-auth-check-on-mutating-route
+    languages: [python]
+    severity: WARNING
+    message: >
+      A route that mutates state (POST/PUT/PATCH/DELETE) has no dependency
+      that looks like an authorisation check anywhere in its signature or
+      body (nothing naming current_user/require_.../authoriz.../
+      get_current_...). A payload validator is not an authorisation check --
+      confirm the caller is allowed to perform this mutation, or add a
+      comment naming the layer (e.g. a gateway) that already does.
+    metadata:
+      category: security
+      cwe: "CWE-862: Missing Authorization"
+      owasp: "A01:2021 - Broken Access Control"
+    patterns:
+      - pattern-either:
+          - pattern: |
+              @$ROUTER.post(...)
+              async def $FUNC(...):
+                  ...
+          - pattern: |
+              @$ROUTER.put(...)
+              async def $FUNC(...):
+                  ...
+          - pattern: |
+              @$ROUTER.patch(...)
+              async def $FUNC(...):
+                  ...
+          - pattern: |
+              @$ROUTER.delete(...)
+              async def $FUNC(...):
+                  ...
+      - pattern-not-regex: (?i)(current_user|require_|authoriz|get_current_)
+
+  - id: unsafe-deserialization
+    languages: [python]
+    severity: ERROR
+    message: >
+      Deserializing with pickle (arbitrary code execution on load, full
+      stop -- never unpickle data you didn't create) or PyYAML's yaml.load
+      without an explicit safe loader (the default Loader can construct
+      arbitrary Python objects). Use json for data interchange, or
+      yaml.safe_load if YAML is required.
+    metadata:
+      category: security
+      cwe: "CWE-502: Deserialization of Untrusted Data"
+      owasp: "A08:2021 - Software and Data Integrity Failures"
+    patterns:
+      - pattern-either:
+          - pattern: pickle.loads(...)
+          - pattern: pickle.load(...)
+          - pattern: yaml.load(...)
+
+  - id: broad-except-pass
+    languages: [python]
+    severity: WARNING
+    message: >
+      A broad except (bare `except:` or `except Exception:`) that silently
+      swallows the error with `pass`. Whatever went wrong -- including bugs
+      unrelated to what this block was guarding against -- disappears
+      without a trace. At minimum log it; better, catch the specific
+      exception you actually expect.
+    metadata:
+      category: security
+      cwe: "CWE-390: Detection of Error Condition Without Action"
+      owasp: "A09:2021 - Security Logging and Monitoring Failures"
+    patterns:
+      - pattern-either:
+          - pattern: |
+              try:
+                  ...
+              except:
+                  pass
+          - pattern: |
+              try:
+                  ...
+              except Exception:
+                  pass
+          - pattern: |
+              try:
+                  ...
+              except Exception as $E:
+                  pass
