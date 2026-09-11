@@ -21,6 +21,22 @@ mkdir -p "$OUT_DIR"
 
 CONFIG=".semgrep.yml"
 CURRENT_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
+
+# Prefer python3 (macOS/Linux); fall back to python (common on Windows).
+# Don't just check PATH -- on Windows, "python3"/"python" can resolve to a
+# Microsoft Store shim that exists on PATH but fails when actually run, so
+# probe with --version and pick whichever interpreter really works.
+PYTHON_BIN=""
+for candidate in python3 python; do
+    if "$candidate" --version >/dev/null 2>&1; then
+        PYTHON_BIN="$candidate"
+        break
+    fi
+done
+if [ -z "$PYTHON_BIN" ]; then
+    echo "ERROR: no working python3/python interpreter found on PATH." >&2
+    exit 1
+fi
 SUMMARY_TSV="$OUT_DIR/summary.tsv"
 printf 'branch\trule\tcount\n' > "$SUMMARY_TSV"
 
@@ -50,7 +66,7 @@ for branch in "${BRANCHES[@]}"; do
     fi
 
     if [ -f "$json_out" ]; then
-        python3 - "$branch" "$json_out" "$SUMMARY_TSV" <<'PY'
+        "$PYTHON_BIN" - "$branch" "$json_out" "$SUMMARY_TSV" <<'PY'
 import json
 import sys
 from collections import Counter
