@@ -6,6 +6,7 @@ network socket, no shared state between tests.
 """
 
 from collections.abc import AsyncGenerator
+from datetime import UTC, datetime, timedelta
 
 import pytest
 import pytest_asyncio
@@ -14,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.app import create_app
 from src.db import session as db_session
-from src.db.models import Base, Resource
+from src.db.models import Base, Reservation, Resource
 
 
 @pytest_asyncio.fixture
@@ -86,5 +87,29 @@ def resource_factory():
         is_active: bool = True,
     ) -> Resource:
         return Resource(name=name, kind=kind, capacity=capacity, is_active=is_active)
+
+    return _make
+
+
+@pytest.fixture
+def reservation_factory():
+    """Return a factory for building :class:`Reservation` instances in tests."""
+
+    def _make(
+        resource_id: int,
+        starts_at: datetime | None = None,
+        ends_at: datetime | None = None,
+        note: str | None = None,
+        cancelled_at: datetime | None = None,
+    ) -> Reservation:
+        starts_at = starts_at or datetime(2026, 1, 1, 10, 0, tzinfo=UTC)
+        ends_at = ends_at or (starts_at + timedelta(hours=1))
+        return Reservation(
+            resource_id=resource_id,
+            starts_at=starts_at,
+            ends_at=ends_at,
+            note=note,
+            cancelled_at=cancelled_at,
+        )
 
     return _make

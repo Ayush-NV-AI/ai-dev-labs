@@ -10,7 +10,7 @@ from contextlib import asynccontextmanager
 from fastapi import APIRouter, FastAPI
 
 from src.api.errors import register_exception_handlers
-from src.api.routes import resources
+from src.api.routes import reservations, resources
 from src.config import get_settings
 from src.db.session import init_models
 
@@ -52,5 +52,6 @@ def create_app() -> FastAPI:
 
     app.include_router(health_router)
     app.include_router(resources.router)
+    app.include_router(reservations.router)
 
     return app
