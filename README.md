@@ -66,12 +66,12 @@ python scripts/verify_setup.py
 | `lab-1-2-scaffold` | Lab 1.2 — generating an endpoint from natural language | built |
 | `lab-2-1-legacy` | Lab 2.1 — characterizing legacy code before refactoring | built |
 | `lab-2-2-bug` | Lab 2.2 — root-causing a non-local bug with a red herring | built |
-| `lab-3-1-design` | TODO — not built in this scaffold run |
-| `lab-3-2-undocumented` | TODO — not built in this scaffold run |
-| `lab-3-2-review-me` | TODO — not built in this scaffold run |
-| `lab-4-1-agent` | TODO — not built in this scaffold run |
-| `lab-4-2-sast` | TODO — not built in this scaffold run |
-| `lab-5-2-capstone` | TODO — not built in this scaffold run |
+| `lab-3-1-design` | Lab 3.1 — designing a notification capability from a brief | built |
+| `lab-3-2-undocumented` | Lab 3.2 — documenting a working, undocumented service | built |
+| `lab-3-2-review-me` | Lab 3.2 — reviewing a PR (act/judge/ignore triage) | built |
+| `lab-4-1-agent` | Lab 4.1 — supervising an agent on a multi-file feature | built |
+| `lab-4-2-sast` | Lab 4.2 — static analysis security gate | built |
+| `lab-5-2-capstone` | Capstone — design, build, test, document, scan | built |
 
 See `SCOPE_NOTES.md` at the repo root for what was deliberately left out
 of this build and why.
