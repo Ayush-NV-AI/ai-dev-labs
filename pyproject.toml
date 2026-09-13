@@ -12,3 +12,4 @@ minversion = "8.0"
 addopts = "-q"
 testpaths = ["tests"]
 asyncio_mode = "auto"
+pythonpath = ["."]
