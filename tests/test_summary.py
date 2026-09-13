@@ -1,8 +1,17 @@
-"""Lab 1.1 exercise tests — happy path only.
+"""Lab 1.1 exercise tests.
 
-Skipped on every branch except when a participant is actively working the
-exercise. The edge cases (empty list, ties on top spend) are deliberately
-not tested here — see docs/LAB-1-1.md.
+Skipped by default. Once you've prompted an implementation of
+``summarise_orders``, delete the three ``@pytest.mark.skip(...)`` lines
+below and run:
+
+    pytest -q -s tests/test_summary.py -v
+
+``test_summarise_orders_happy_path`` is a real pass/fail check.
+``test_summarise_orders_empty_list`` and ``test_summarise_orders_tie``
+don't assert a specific answer (the brief deliberately never specifies
+one) — they just print what your implementation actually did, so you
+have something concrete to compare against a partner who used the
+other tool.
 """
 
 from datetime import UTC, datetime
@@ -38,3 +47,28 @@ def test_summarise_orders_happy_path():
     assert result["order_count"] == 3
     assert result["average_order"] == Decimal("15.00")
     assert result["top_customer_id"] == 2
+
+
+@pytest.mark.skip("lab exercise")
+def test_summarise_orders_empty_list():
+    """No specified correct answer — this reports what happened, it
+    doesn't grade it. Read the printed line: did it crash, or not?
+    """
+    try:
+        result = summarise_orders([])
+        print(f"\nEMPTY LIST -> no crash, returned: {result}")
+    except Exception as exc:  # noqa: BLE001 — deliberately broad, this is a probe
+        print(f"\nEMPTY LIST -> CRASHED: {type(exc).__name__}: {exc}")
+
+
+@pytest.mark.skip("lab exercise")
+def test_summarise_orders_tie():
+    """No specified tie-break rule — this reports the choice made,
+    it doesn't grade it.
+    """
+    orders = [
+        _order(customer_id=1, total="50.00"),
+        _order(customer_id=2, total="50.00"),
+    ]
+    result = summarise_orders(orders)
+    print(f"\nTIE ON TOP SPEND -> top_customer_id chosen: {result['top_customer_id']}")
